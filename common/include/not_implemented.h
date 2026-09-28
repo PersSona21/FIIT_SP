@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <string>
 
-class not_implemented final:
+class not_implemented final: // final что от него нельзя наследоваться
     public std::logic_error
 {
 
