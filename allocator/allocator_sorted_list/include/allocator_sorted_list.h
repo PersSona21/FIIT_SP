@@ -14,48 +14,71 @@ class allocator_sorted_list final:
 {
 
 private:
-    
+
+    class allocator_metadata {
+    public:
+        std::pmr::memory_resource *parent_allocator = nullptr;
+        fit_mode fit_mode = fit_mode::first_fit;
+        size_t size = 0;
+        std::mutex mutex;
+        void* ptr_to_first_free_block = nullptr;
+    };
+
+    class block_metadata {
+    public:
+        void*ptr = nullptr;
+        size_t size = 0;
+    };
+
+private:
+
     void *_trusted_memory;
 
-    static constexpr const size_t allocator_metadata_size = sizeof(std::pmr::memory_resource *) + sizeof(fit_mode) + sizeof(size_t) + sizeof(std::mutex) + sizeof(void*);
+    static constexpr const size_t allocator_metadata_size = sizeof(allocator_metadata);
 
-    static constexpr const size_t block_metadata_size = sizeof(void*) + sizeof(size_t);
+    static constexpr const size_t block_metadata_size = sizeof(block_metadata);
 
 public:
 
     explicit allocator_sorted_list(
-            size_t space_size,
-            std::pmr::memory_resource *parent_allocator = nullptr,
+            size_t space_size, // размер области память под блоки
+            std::pmr::memory_resource *parent_allocator = nullptr, // родительский алокатор
             allocator_with_fit_mode::fit_mode allocate_fit_mode = allocator_with_fit_mode::fit_mode::first_fit);
-    
-    allocator_sorted_list(
-        allocator_sorted_list const &other);
-    
-    allocator_sorted_list &operator=(
-        allocator_sorted_list const &other);
 
     allocator_sorted_list(
-        allocator_sorted_list &&other) noexcept;
-    
-    allocator_sorted_list &operator=(
-        allocator_sorted_list &&other) noexcept;
+        allocator_sorted_list const &other); // копирование
 
-    ~allocator_sorted_list() override;
+    allocator_sorted_list &operator=(
+        allocator_sorted_list const &other); // оператор присваивания копированием b = a
+
+    allocator_sorted_list(
+        allocator_sorted_list &&other) noexcept; // конструктор move (забираем ресурсы)
+
+    allocator_sorted_list &operator=(
+        allocator_sorted_list &&other) noexcept; // оператор присваивания перемещением a = std::move(b);
+
+    ~allocator_sorted_list() override; // деструктор
 
 private:
-    
+
     [[nodiscard]] void *do_allocate_sm(
         size_t size) override;
-    
+
     void do_deallocate_sm(
         void *at) override;
 
     bool do_is_equal(const std::pmr::memory_resource&) const noexcept override;
-    
+
     inline void set_fit_mode(
         allocator_with_fit_mode::fit_mode mode) override;
 
     std::vector<allocator_test_utils::block_info> get_blocks_info() const noexcept override;
+
+    void* _allocate_first_fit(size_t useful_size);
+    void* _allocate_best_fit(size_t useful_size);
+    void* _allocate_worst_fit(size_t useful_size);
+
+    void *_link_new_block(void* ptr_to_new_block, void* prev_to_free_block, const size_t useful_size);
 
 private:
 
@@ -121,6 +144,8 @@ private:
         sorted_iterator();
 
         sorted_iterator(void* trusted);
+
+        sorted_iterator(void* current_ptr, void* free_ptr, void* trusted_memory);
     };
 
     friend class sorted_iterator;
